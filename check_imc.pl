@@ -27,7 +27,7 @@ GetOptions (
 			"password=s" => \my $password,
 			"operation=s" => \my $operation,
 			"realm=s" => \my $realm,
-			"switch=s" => \my $switch_name,
+			"device=s" => \my $device_name,
 			"h|help" => sub { exec perldoc => -F => $0 or die "Cannot execute perldoc: $!\n"; },
 			"warning=i" => \my $warning,
 			"critical=i" => \my $critical,
@@ -39,7 +39,22 @@ sub Error {
     exit 2;
 }
 
+sub get_xml_text {
+	my $rest_call_local = $_[0];
+	my $browser = LWP::UserAgent->new();
+	my $req = HTTP::Request->new();
+	$browser->credentials("$server:$port",$realm,$username,$password);
+	$req->uri("http://$server:$port/imcrs/$rest_call_local");
+	$req->method('GET');
+	$req->header('Content_Type' => 'application/xml');
+	my $response = $browser->request($req);
+	die "Error: ", $response->status_line, "\n", Dumper($response->headers), "\n\n\n", "Is the REALM correct: ",$response->header("WWW-Authenticate"), "== ", $realm unless $response->is_success;
+	return $response;
+}
+
 sub license_check {
+	Error('Option --warning required') unless $warning;
+	Error('Option --critical required') unless $critical;
 	my $function = "plat/licenseInfo/allLicenseMsg";
 	my $xml_response = get_xml_text($function);
 	my $dom = XML::LibXML->load_xml(string => $xml_response->content);
@@ -74,25 +89,31 @@ sub license_check {
 	}
 }
 
-sub get_xml_text {
-	my $rest_call_local = $_[0];
-	my $browser = LWP::UserAgent->new();
-	my $req = HTTP::Request->new();
-	$browser->credentials("$server:$port",$realm,$username,$password);
-	$req->uri("http://$server:$port/imcrs/$rest_call_local");
-	$req->method('GET');
-	$req->header('Content_Type' => 'application/xml');
-	my $response = $browser->request($req);
-	die "Error: ", $response->status_line, "\n", Dumper($response->headers), "\n\n\n", "Is the REALM correct: ",$response->header("WWW-Authenticate"), "== ", $realm unless $response->is_success;
-	return $response;
+sub realtime_alarms_check {
+	my $function = "fault/faultRealTime?operatorName=$username";
+	my $xml_response = get_xml_text($function);
+	my $dom = XML::LibXML->load_xml(string => $xml_response->content);
+	my ($crit, $warn);
+	my @list_faultRealTime = $dom->getElementsByTagName("list")->get_node(1)->getElementsByTagName("faultRealTime")->get_node(1)->getElementsByTagName("faultRealTimeList");
+	print @list_faultRealTime."\n";
+	foreach my $node (@list_faultRealTime){
+		print $node."\n";
+		#if ($node->getElementsByTagName("severity")->string_value() == "2" && $node->getElementsByTagName("userAckType")->string_value() == "0"){
+			print "CRITICAL - ".$node->getElementsByTagName('deviceDisplay')->string_value()."\n";
+		#} 
+	}
+
+	print "ok";
+	exit(0);
+
+
 }
+
+
 
 Error('Option --server required') unless $server;
 Error('Option --username required') unless $username;
 Error('Option --password required') unless $password;
-Error('Option --warning required') unless $warning;
-Error('Option --critical required') unless $critical;
-
 
 $realm = "iMC RESTful Web Services" unless $realm;
 $port = "8080" unless $port;
@@ -100,7 +121,9 @@ $port = "8080" unless $port;
 my $rest_call;
 
 if($operation eq "license_check"){
-	$rest_call = license_check();
+	license_check();
+} elsif ($operation eq "realtime_alarms_check"){
+	realtime_alarms_check();
 }
 
 
@@ -113,7 +136,7 @@ check_hp_imc - Check HPE iMC environment
 =head1 SYNOPSIS
 
 check_hp_imc.pl --server SERVER_IP --username USERNAME --password PASSWORD \
-		[--port PORT] --operation OPERATION [--switch SWITCH_NAME] [-h|--help] 
+		[--port PORT] --operation OPERATION [--device DEVICE_NAME] [-h|--help] 
 
 =head1 DESCRIPTION
 
@@ -128,7 +151,7 @@ It can be used to retrieve the managed devices status, for example
 
 FQDN or IP Address of the HPE iMC
 
-= item --port PORT
+=item --port PORT
 
 Optional: Port used to connect to the HPE iMC eAPIs
 
