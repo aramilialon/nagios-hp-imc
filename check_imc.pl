@@ -28,7 +28,10 @@ GetOptions (
 			"operation=s" => \my $operation,
 			"realm=s" => \my $realm,
 			"switch=s" => \my $switch_name,
-			'h|help' => sub { exec perldoc => -F => $0 or die "Cannot execute perldoc: $!\n"; }
+			"h|help" => sub { exec perldoc => -F => $0 or die "Cannot execute perldoc: $!\n"; },
+			"warning=i" => \my $warning,
+			"critical=i" => \my $critical,
+			"performance" => \my $performance,
 ) or Error("$0: Error in command line arguments\n");
 
 sub Error {
@@ -40,7 +43,35 @@ sub license_check {
 	my $function = "plat/licenseInfo/allLicenseMsg";
 	my $xml_response = get_xml_text($function);
 	my $dom = XML::LibXML->load_xml(string => $xml_response->content);
-	print $dom->getElementsByTagName("list")->get_node(1)->getElementsByTagName("licenseInfo")->get_node(1)->getElementsByTagName("comDisplayName")->string_value();
+	my $license_info_element = $dom->getElementsByTagName("list")->get_node(1)->getElementsByTagName("licenseInfo")->get_node(1);
+	my $max_count = $license_info_element->getElementsByTagName("maxCount")->string_value();
+	my $lic_used_count = $license_info_element->getElementsByTagName("licUsedCount")->string_value();
+	my $free_licences = $max_count - $lic_used_count;
+	if ($free_licences < $critical){
+		print "CRITICAL: there are $free_licences free licences";
+		if ($performance){
+			print " | 'free_licences'=$free_licences;$warning;$critical\n";
+		} else {
+			print "\n";
+		}
+		exit(2);
+	} elsif ($free_licences < $warning) {
+		print "WARNING: there are $free_licences free licences";
+		if ($performance){
+			print " | 'free_licences'=$free_licences;$warning;$critical\n";
+		} else {
+			print "\n";
+		}
+		exit(1);
+	} else {
+		print "OK: there are $free_licences free licences";
+		if ($performance){
+			print " | 'free_licences'=$free_licences;$warning;$critical\n";
+		} else {
+			print "\n";
+		}
+		exit(0);
+	}
 }
 
 sub get_xml_text {
@@ -59,6 +90,8 @@ sub get_xml_text {
 Error('Option --server required') unless $server;
 Error('Option --username required') unless $username;
 Error('Option --password required') unless $password;
+Error('Option --warning required') unless $warning;
+Error('Option --critical required') unless $critical;
 
 
 $realm = "iMC RESTful Web Services" unless $realm;
@@ -95,13 +128,17 @@ It can be used to retrieve the managed devices status, for example
 
 FQDN or IP Address of the HPE iMC
 
+= item --port PORT
+
+Optional: Port used to connect to the HPE iMC eAPIs
+
 =item -u | --username USERNAME
 
-The Username to be used
+The Username used to connect to the HPE iMC eAPIs
 
 =item -p | --password PASSWORD
 
-The Login Password of the NetApp to monitor
+The Password used to connect to the HPE iMC eAPIs
 
 =item --size-warning PERCENT_WARNING
 
@@ -149,10 +186,10 @@ to see this Documentation
 
 =head1 EXIT CODE
 
-3 on Unknown Error
-2 if Critical Threshold has been reached
-1 if Warning Threshold has been reached or any problem occured
-0 if everything is ok
+3 on Unknown Error \
+2 if Critical Threshold has been reached \
+1 if Warning Threshold has been reached or any problem occured \
+0 if everything is ok \
 
 =head1 AUTHORS
 
