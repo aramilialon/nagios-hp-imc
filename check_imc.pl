@@ -27,7 +27,6 @@ GetOptions (
 			"password=s" => \my $password,
 			"operation=s" => \my $operation,
 			"realm=s" => \my $realm,
-			"device=s" => \my $device_name,
 			"h|help" => sub { exec perldoc => -F => $0 or die "Cannot execute perldoc: $!\n"; },
 			"warning=i" => \my $warning,
 			"critical=i" => \my $critical,
@@ -97,19 +96,6 @@ sub get_current_alarm {
 	return $list_element->getElementsByTagName("alarm");
 }
 
-# sub get_realtime_error {
-# 	my $function = "fault/faultRealTime?operatorName=$username";
-# 	my $xml_response = get_xml_text($function);
-# 	my $dom = XML::LibXML->load_xml(string => $xml_response->content);
-# 	my $list_element = $dom->getElementsByTagName("list")->get_node(1);
-# 	if ($list_element->getElementsByTagName("count")->string_value() > 0){
-# 		return $list_element->getElementsByTagName("faultRealTime")->get_node(1)->getElementsByTagName("faultRealTimeList");
-		
-# 	} else{
-# 		return;
-# 	}
-# }
-
 sub get_down_devices {
 	my $error_level="1";
 	my @error_devices = get_current_alarm($error_level);
@@ -133,7 +119,25 @@ sub get_down_devices {
 }
 
 sub get_backup_error {
-
+	my $error_level="4";
+	my @error_devices = get_current_alarm($error_level);
+	if (@error_devices){
+		my $return_string;
+		foreach my $node (@error_devices){
+			if ($node->getElementsByTagName("alarmDesc")->string_value() =~ /Device "(.*)" does not respond/){
+				if ($return_string eq ""){
+					$return_string = $1;
+				} else {
+					$return_string .= ", $1";
+				}
+			} 
+			print "WARNING: there are offline devices: $return_string\n";
+			exit(1);
+		}
+	} else{
+		print "OK - All devices backups are fine\n";
+		exit(0);
+	}
 }
 
 
@@ -166,7 +170,7 @@ check_hp_imc - Check HPE iMC environment
 
 =head1 SYNOPSIS
 
-check_hp_imc.pl --server SERVER_IP [--port PORT] --username USERNAME --password PASSWORD --operation OPERATION [--device DEVICE_NAME] [-h|--help] 
+check_hp_imc.pl --server SERVER_IP [--port PORT] --username USERNAME --password PASSWORD --operation OPERATION [-h|--help] 
 
 =head1 DESCRIPTION
 
@@ -200,6 +204,17 @@ The Warning threshold for tests that expect a threshold
 
 The Critical threshold for tests that expect a threshold
 
+=item --operation OPERATION
+
+List of the possible operations that the script checks against the SERVER iMC. Where written "W/C" means that WARNING and CRITICAL values are needed.
+Possible values:
+
+	- license_check (W/C): verify how many free licenses are left and raise a WARNING/CRITICAL alarm if the thresholds are reached
+
+	- get_down_devices: verify that there are no down devices and, in case, raise a CRITICAL alarm and write down the list of the devices 
+
+	- get_backup_error: verify whether any device has a backup that is different from the baseline and raise a WARNING alarm in case
+
 =item --performance
 
 Flag for performance data output
@@ -212,10 +227,13 @@ Tqo see this Documentation
 
 =head1 EXIT CODE
 
-3 on Unknown Error \
-2 if Critical Threshold has been reached \
-1 if Warning Threshold has been reached or any problem occured \
-0 if everything is ok \
+3 on Unknown Errors 
+
+2 if Critical Threshold has been reached
+
+1 if Warning Threshold has been reached
+
+0 if everything is ok
 
 =head1 AUTHORS
 
