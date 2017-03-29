@@ -161,7 +161,7 @@ sub get_backup_error {
 				}
 			}
 		}
-		print "WARNING: there are different backups: $return_string\n";
+		print "WARNING: there are backups that diverge from the baseline: $return_string\n";
 		exit(1);
 	} else{
 		print "OK - All devices backups are fine\n";
