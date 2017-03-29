@@ -89,26 +89,39 @@ sub license_check {
 	}
 }
 
-sub realtime_alarms_check {
+sub get_realtime_error {
 	my $function = "fault/faultRealTime?operatorName=$username";
 	my $xml_response = get_xml_text($function);
 	my $dom = XML::LibXML->load_xml(string => $xml_response->content);
-	my ($crit, $warn);
-	my @list_faultRealTime = $dom->getElementsByTagName("list")->get_node(1)->getElementsByTagName("faultRealTime")->get_node(1)->getElementsByTagName("faultRealTimeList");
-	print @list_faultRealTime."\n";
-	foreach my $node (@list_faultRealTime){
-		print $node."\n";
-		#if ($node->getElementsByTagName("severity")->string_value() == "2" && $node->getElementsByTagName("userAckType")->string_value() == "0"){
-			print "CRITICAL - ".$node->getElementsByTagName('deviceDisplay')->string_value()."\n";
-		#} 
+	my $list_element = $dom->getElementsByTagName("list")->get_node(1);
+	if ($list_element->getElementsByTagName("count")->string_value() > 0){
+		return $list_element->getElementsByTagName("faultRealTime")->get_node(1)->getElementsByTagName("faultRealTimeList");
+		
+	} else{
+		return;
 	}
-
-	print "ok";
-	exit(0);
-
-
 }
 
+sub get_down_devices {
+	my @error_devices = get_realtime_error();
+	if (@error_devices){
+		my $return_string;
+		foreach my $node (@error_devices){
+			if ($node->getElementsByTagName("severity")->string_value() == "1" && $node->getElementsByTagName("userAckType")->string_value() == "0" && $node->getElementsByTagName("faultDesc")->string_value() =~ /Device "(.*)" does not respond/){
+				if ($return_string eq ""){
+					$return_string = $1;
+				} else {
+					$return_string .= ", $1";
+				}
+			} 
+			print "CRITICAL: there are offline devices: $return_string\n";
+			exit(2);
+		}
+	} else{
+		print "OK - All devices are fine\n";
+		exit(0);
+	}
+}
 
 
 Error('Option --server required') unless $server;
@@ -122,8 +135,11 @@ my $rest_call;
 
 if($operation eq "license_check"){
 	license_check();
-} elsif ($operation eq "realtime_alarms_check"){
-	realtime_alarms_check();
+} elsif ($operation eq "get_down_devices"){
+	get_down_devices();
+} else {
+	print "UNKNOWN - Operation parameter not recognized\n";
+	exit(3);
 }
 
 
