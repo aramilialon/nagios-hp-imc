@@ -89,25 +89,34 @@ sub license_check {
 	}
 }
 
-sub get_realtime_error {
-	my $function = "fault/faultRealTime?operatorName=$username";
+sub get_current_alarm {
+	my $function = "fault/alarm?operatorName=$username&alarmLevel=$_[0]&recStatus=0&ackStatus=0&size=200&desc=false";
 	my $xml_response = get_xml_text($function);
 	my $dom = XML::LibXML->load_xml(string => $xml_response->content);
 	my $list_element = $dom->getElementsByTagName("list")->get_node(1);
-	if ($list_element->getElementsByTagName("count")->string_value() > 0){
-		return $list_element->getElementsByTagName("faultRealTime")->get_node(1)->getElementsByTagName("faultRealTimeList");
-		
-	} else{
-		return;
-	}
+	return $list_element->getElementsByTagName("alarm");
 }
 
+# sub get_realtime_error {
+# 	my $function = "fault/faultRealTime?operatorName=$username";
+# 	my $xml_response = get_xml_text($function);
+# 	my $dom = XML::LibXML->load_xml(string => $xml_response->content);
+# 	my $list_element = $dom->getElementsByTagName("list")->get_node(1);
+# 	if ($list_element->getElementsByTagName("count")->string_value() > 0){
+# 		return $list_element->getElementsByTagName("faultRealTime")->get_node(1)->getElementsByTagName("faultRealTimeList");
+		
+# 	} else{
+# 		return;
+# 	}
+# }
+
 sub get_down_devices {
-	my @error_devices = get_realtime_error();
+	my $error_level="1";
+	my @error_devices = get_current_alarm($error_level);
 	if (@error_devices){
 		my $return_string;
 		foreach my $node (@error_devices){
-			if ($node->getElementsByTagName("severity")->string_value() == "1" && $node->getElementsByTagName("userAckType")->string_value() == "0" && $node->getElementsByTagName("faultDesc")->string_value() =~ /Device "(.*)" does not respond/){
+			if ($node->getElementsByTagName("alarmDesc")->string_value() =~ /Device "(.*)" does not respond/){
 				if ($return_string eq ""){
 					$return_string = $1;
 				} else {
@@ -121,6 +130,10 @@ sub get_down_devices {
 		print "OK - All devices are fine\n";
 		exit(0);
 	}
+}
+
+sub get_backup_error {
+
 }
 
 
@@ -137,8 +150,10 @@ if($operation eq "license_check"){
 	license_check();
 } elsif ($operation eq "get_down_devices"){
 	get_down_devices();
+} elsif ($operation eq "get_backup_error"){
+	get_backup_error();
 } else {
-	print "UNKNOWN - Operation parameter not recognized\n";
+	print "UNKNOWN: Operation parameter not recognized\n";
 	exit(3);
 }
 
@@ -151,13 +166,11 @@ check_hp_imc - Check HPE iMC environment
 
 =head1 SYNOPSIS
 
-check_hp_imc.pl --server SERVER_IP --username USERNAME --password PASSWORD \
-		[--port PORT] --operation OPERATION [--device DEVICE_NAME] [-h|--help] 
+check_hp_imc.pl --server SERVER_IP [--port PORT] --username USERNAME --password PASSWORD --operation OPERATION [--device DEVICE_NAME] [-h|--help] 
 
 =head1 DESCRIPTION
 
-Connects to a HPE iMC and performe some operations with it. \
-It can be used to retrieve the managed devices status, for example
+Connects to a HPE iMC and performe some checks on it.
 
 =head1 OPTIONS
 
@@ -179,47 +192,21 @@ The Username used to connect to the HPE iMC eAPIs
 
 The Password used to connect to the HPE iMC eAPIs
 
-=item --size-warning PERCENT_WARNING
+=item --warning WARNING
 
-The Warning threshold for data space usage.
+The Warning threshold for tests that expect a threshold
 
-=item --size-critical PERCENT_CRITICAL
+=item --critical CRITICAL
 
-The Critical threshold for data space usage.
+The Critical threshold for tests that expect a threshold
 
-=item --inode-warning PERCENT_WARNING
-
-The Warning threshold for inodes (files). Defaults to 65% if not given.
-
-=item --inode-critical PERCENT_CRITICAL
-
-The Critical threshold for inodes (files). Defaults to 85% if not given.
-
-=item --snap-warning PERCENT_WARNING
-
-The Warning threshold for snapshot space usage. Defaults to 75%.
-
-=item --snap-critical PERCENT_CRITICAL
-
-The Critical threshold for snapshot space usage. Defaults to 90%.
-
-=item -V | --volume VOLUME
-
-Optional: The name of the Volume to check
-
-=item -P --perf
+=item --performance
 
 Flag for performance data output
 
-=item --exclude
+=item -h | --help
 
-Optional: The name of a volume that has to be excluded from the checks (multiple exclude item for multiple volumes)
-
-=item -help
-
-=item -?
-
-to see this Documentation
+Tqo see this Documentation
 
 =back
 
