@@ -104,12 +104,14 @@ sub get_down_devices {
 		foreach my $node (@error_devices){
 			if ($node->getElementsByTagName("alarmDesc")->string_value() =~ /Device "(.*)" does not respond/){
 				my $device_name = $node->getElementsByTagName("deviceName")->string_value();
+				$device_name =~ /([^\d]{4,}[\d]{3})(\s)?(-)?/;
+				$device_name = $1;
 				if ($return_string eq ""){
 					$return_string = $device_name;
 				} else {
 					$return_string .= ", $device_name";
 				}
-			} 
+			}
 		}
 		print "CRITICAL: there are offline devices: $return_string\n";
 		exit(2);
@@ -122,18 +124,42 @@ sub get_down_devices {
 sub get_backup_error {
 	my $error_level="4";
 	my @error_devices = get_current_alarm($error_level);
+	my %return_device_hash = {};
 	if (@error_devices){
 		my $return_string;
 		foreach my $node (@error_devices){
-			if ($node->getElementsByTagName("alarmDesc")->string_value() =~ /During backup, found that running configuration file /){
+			if ($node->getElementsByTagName("alarmDesc")->string_value() =~ /During backup, found that (\w*) configuration file "(.*) baseline/){
+				my $what_file = $1;
 				my $device_name = $node->getElementsByTagName("deviceName")->string_value();
-				$device_name =~ /([^\d]{4,5}[\d]{3})(\s)?(-)?/;
-				if ($return_string eq ""){
-					$return_string = $1;
+				$device_name =~ /([^\d]{4,}[\d]{3})(\s)?(-)?/;
+				$device_name = $1;
+				if ($return_device_hash{$device_name} eq ""){
+					$return_device_hash{$device_name} = $what_file;
 				} else {
-					$return_string .= ", $1";
+					$return_device_hash{$device_name} .= ", $what_file";
 				}
 			} 
+		}
+		for my $key (keys %return_device_hash){
+			if ($return_device_hash{$key} =~ /(.*), (.*)/){
+				if ($return_string eq ""){
+					$return_string = "$key (RUN & START)";
+				} else {
+					$return_string .= ", $key (RUN & START)";
+				}
+			} elsif ($return_device_hash{$key} =~ /running/){
+				if ($return_string eq ""){
+					$return_string = "$key (RUN)";
+				} else {
+					$return_string .= ", $key (RUN)";
+				}
+			} elsif ($return_device_hash{$key} =~ /startup/){
+				if ($return_string eq ""){
+					$return_string = "$key (START)";
+				} else {
+					$return_string .= ", $key (START)";
+				}
+			}
 		}
 		print "WARNING: there are different backups: $return_string\n";
 		exit(1);
