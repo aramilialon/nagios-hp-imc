@@ -103,15 +103,16 @@ sub get_down_devices {
 		my $return_string;
 		foreach my $node (@error_devices){
 			if ($node->getElementsByTagName("alarmDesc")->string_value() =~ /Device "(.*)" does not respond/){
+				my $device_name = $node->getElementsByTagName("deviceName")->string_value();
 				if ($return_string eq ""){
-					$return_string = $1;
+					$return_string = $device_name;
 				} else {
-					$return_string .= ", $1";
+					$return_string .= ", $device_name";
 				}
 			} 
-			print "CRITICAL: there are offline devices: $return_string\n";
-			exit(2);
 		}
+		print "CRITICAL: there are offline devices: $return_string\n";
+		exit(2);
 	} else{
 		print "OK - All devices are fine\n";
 		exit(0);
@@ -124,16 +125,18 @@ sub get_backup_error {
 	if (@error_devices){
 		my $return_string;
 		foreach my $node (@error_devices){
-			if ($node->getElementsByTagName("alarmDesc")->string_value() =~ /Device "(.*)" does not respond/){
+			if ($node->getElementsByTagName("alarmDesc")->string_value() =~ /During backup, found that running configuration file /){
+				my $device_name = $node->getElementsByTagName("deviceName")->string_value();
+				$device_name =~ /([^\d]{4,5}[\d]{3})(\s)?(-)?/;
 				if ($return_string eq ""){
 					$return_string = $1;
 				} else {
 					$return_string .= ", $1";
 				}
 			} 
-			print "WARNING: there are offline devices: $return_string\n";
-			exit(1);
 		}
+		print "WARNING: there are different backups: $return_string\n";
+		exit(1);
 	} else{
 		print "OK - All devices backups are fine\n";
 		exit(0);
@@ -144,11 +147,8 @@ sub get_backup_error {
 Error('Option --server required') unless $server;
 Error('Option --username required') unless $username;
 Error('Option --password required') unless $password;
-
 $realm = "iMC RESTful Web Services" unless $realm;
 $port = "8080" unless $port;
-
-my $rest_call;
 
 if($operation eq "license_check"){
 	license_check();
