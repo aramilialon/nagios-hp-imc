@@ -113,8 +113,13 @@ sub get_down_devices {
 				}
 			}
 		}
-		print "CRITICAL: there are offline devices: $return_string\n";
-		exit(2);
+		if ($return_string){
+			print "CRITICAL: there are offline devices: $return_string\n";
+			exit(2);
+		} else {
+			print "OK - All devices are fine\n";
+        	        exit(0);
+	        }
 	} else{
 		print "OK - All devices are fine\n";
 		exit(0);
@@ -124,7 +129,7 @@ sub get_down_devices {
 sub get_backup_error {
 	my $error_level="4";
 	my @error_devices = get_current_alarm($error_level);
-	my %return_device_hash = {};
+	my %return_device_hash;
 	if (@error_devices){
 		my $return_string;
 		foreach my $node (@error_devices){
@@ -161,9 +166,14 @@ sub get_backup_error {
 				}
 			}
 		}
-		print "WARNING: there are backups that diverge from the baseline: $return_string\n";
-		exit(1);
-	} else{
+		if ($return_string){
+			print "WARNING: there are backups that diverge from the baseline: $return_string\n";
+			exit(1);
+		} else {
+			print "OK - All devices backups are fine\n";
+			exit(0);
+		}
+	} else {
 		print "OK - All devices backups are fine\n";
 		exit(0);
 	}
